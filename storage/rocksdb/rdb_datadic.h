@@ -457,6 +457,7 @@ class Rdb_key_def {
     AUTO_INC = 9,
     DROPPED_CF = 10,
     MAX_DD_INDEX_ID = 11,
+    SERVER_VERSION = 12,
     END_DICT_INDEX_ID = 255
   };
 
@@ -472,6 +473,7 @@ class Rdb_key_def {
     DDL_CREATE_INDEX_ONGOING_VERSION = 1,
     AUTO_INCREMENT_VERSION = 1,
     DROPPED_CF_VERSION = 1,
+    SERVER_VERSION_VERSION = 1,
     // Version for index stats is stored in IndexStats struct
   };
 
@@ -1578,6 +1580,9 @@ class Rdb_dict_manager : public Ensure_initialized {
   uchar m_key_buf_max_dd_index_id[Rdb_key_def::INDEX_NUMBER_SIZE] = {0};
   rocksdb::Slice m_key_slice_max_dd_index_id;
 
+  uchar m_key_buf_server_version[Rdb_key_def::INDEX_NUMBER_SIZE] = {0};
+  rocksdb::Slice m_key_slice_server_version;
+
   static void dump_index_id(uchar *const netbuf,
                             Rdb_key_def::DATA_DICT_TYPE dict_type,
                             const GL_INDEX_ID &gl_index_id);
@@ -1725,6 +1730,11 @@ class Rdb_dict_manager : public Ensure_initialized {
   bool update_max_index_id(rocksdb::WriteBatch *const batch,
                            const uint32_t index_id,
                            bool is_dd_tbl = false) const;
+
+  bool get_server_version(uint *const version);
+
+  bool set_server_version() const;
+
   void add_stats(rocksdb::WriteBatch *const batch,
                  const std::vector<Rdb_index_stats> &stats) const;
   Rdb_index_stats get_stats(GL_INDEX_ID gl_index_id) const;

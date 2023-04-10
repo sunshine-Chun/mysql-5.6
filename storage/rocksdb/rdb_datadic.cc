@@ -5311,6 +5311,11 @@ bool Rdb_dict_manager::init(rocksdb::TransactionDB *const rdb_dict,
       rocksdb::Slice(reinterpret_cast<char *>(m_key_buf_max_index_id),
                      Rdb_key_def::INDEX_NUMBER_SIZE);
 
+  rdb_netbuf_store_index(m_key_buf_server_version, Rdb_key_def::SERVER_VERSION);
+  m_key_slice_server_version =
+      rocksdb::Slice(reinterpret_cast<char *>(m_key_buf_server_version),
+                     Rdb_key_def::INDEX_NUMBER_SIZE);
+  
   resume_drop_indexes();
   rollback_ongoing_index_creation();
 
@@ -6030,6 +6035,36 @@ bool Rdb_dict_manager::update_max_index_id(rocksdb::WriteBatch *const batch,
     batch->Put(m_system_cfh, m_key_slice_max_index_id, value_writer.to_slice());
   }
 
+  return false;
+}
+
+bool Rdb_dict_manager::get_server_version(uint *const ser_version) {
+  std::string value;
+
+  const rocksdb::Status status = get_value(m_key_slice_server_version, &value);
+  if (status.ok()) {
+    const uchar *const val = (const uchar *)value.c_str();
+    const uint16_t version = rdb_netbuf_to_uint16(val);
+    if (version == Rdb_key_def::SERVER_VERSION_VERSION) {
+      *ser_version = rdb_netbuf_to_uint32(val + Rdb_key_def::VERSION_SIZE);
+      return false;
+    }
+  }
+
+  return true;
+}
+
+bool Rdb_dict_manager::set_server_version() const {
+  const std::unique_ptr<rocksdb::WriteBatch> wb = begin();
+  rocksdb::WriteBatch *const batch = wb.get();
+
+  Rdb_buf_writer<Rdb_key_def::VERSION_SIZE + Rdb_key_def::INDEX_NUMBER_SIZE>
+      value_writer;
+
+  uint32 server_ver = MYSQL_VERSION_ID;
+  value_writer.write_uint16(Rdb_key_def::SERVER_VERSION_VERSION);
+  value_writer.write_uint32(server_ver);
+  batch->Put(m_system_cfh, m_key_slice_server_version, value_writer.to_slice());
   return false;
 }
 

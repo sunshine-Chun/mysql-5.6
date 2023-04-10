@@ -78,10 +78,15 @@ using namespace dd;
 
 namespace {
 
+enum legacy_db_type get_db_type() {
+  return default_dd_storage_engine == DEFAULT_DD_ROCKSDB ? DB_TYPE_ROCKSDB
+                                                         : DB_TYPE_INNODB;
+}
+
 // Initialize recovery in the DDSE.
 bool DDSE_dict_recover(THD *thd, dict_recovery_mode_t dict_recovery_mode,
                        uint version) {
-  handlerton *ddse = ha_resolve_by_legacy_type(thd, DB_TYPE_INNODB);
+  handlerton *ddse = ha_resolve_by_legacy_type(thd, get_db_type());
   if (ddse->dict_recover == nullptr) return true;
 
   bool error = ddse->dict_recover(dict_recovery_mode, version);
@@ -724,7 +729,7 @@ namespace bootstrap {
   predefined tables and tablespaces.
 */
 bool DDSE_dict_init(THD *thd, dict_init_mode_t dict_init_mode, uint version) {
-  handlerton *ddse = ha_resolve_by_legacy_type(thd, DB_TYPE_INNODB);
+  handlerton *ddse = ha_resolve_by_legacy_type(thd, get_db_type());
 
   /*
     The lists with element wrappers are mem root allocated. The wrapped
@@ -786,7 +791,7 @@ bool DDSE_dict_init(THD *thd, dict_init_mode_t dict_init_mode, uint version) {
   }
 
   /*
-    At this point, the Systen_tables registry contains the INERT DD tables,
+    At this point, the System_tables registry contains the INERT DD tables,
     and the DDSE tables. Before we continue, we must add the remaining
     DD tables.
   */
@@ -1502,7 +1507,7 @@ bool sync_meta_data(THD *thd) {
     return true;
 
   // Reset the DDSE local dictionary cache.
-  handlerton *ddse = ha_resolve_by_legacy_type(thd, DB_TYPE_INNODB);
+  handlerton *ddse = ha_resolve_by_legacy_type(thd, get_db_type());
   if (ddse->dict_cache_reset == nullptr) return true;
 
   for (System_tables::Const_iterator it = System_tables::instance()->begin();
@@ -1797,7 +1802,7 @@ bool update_versions(THD *thd, bool is_dd_upgrade_57) {
     back in case of an abort, so this better be the last step we
     do before committing.
   */
-  handlerton *ddse = ha_resolve_by_legacy_type(thd, DB_TYPE_INNODB);
+  handlerton *ddse = ha_resolve_by_legacy_type(thd, get_db_type());
   if (bootstrap::DD_bootstrap_ctx::instance().is_server_upgrade()) {
     if (ddse->dict_set_server_version == nullptr ||
         ddse->dict_set_server_version()) {

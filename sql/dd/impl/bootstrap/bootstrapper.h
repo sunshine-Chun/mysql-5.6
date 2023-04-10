@@ -244,7 +244,7 @@ bool setup_dd_objects_and_collations(THD *thd);
 void recover_innodb_upon_upgrade(THD *thd);
 
 /**
-  Initialize InnoDB for
+  Initialize InnoDB/ROCKSDB for
   - creating new data directory : InnoDB creates system tablespace and
                                   dictionary tablespace.
   - normal server restart.      : Verifies existence of system and dictionary

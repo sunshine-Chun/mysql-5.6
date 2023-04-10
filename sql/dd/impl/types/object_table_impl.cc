@@ -37,7 +37,9 @@ Object_table_impl::Object_table_impl()
       m_actual_def(),
       m_hidden(true) {
   m_target_def.add_option(static_cast<int>(Common_option::ENGINE), "ENGINE",
-                          "ENGINE=INNODB");
+                          default_dd_storage_engine == DEFAULT_DD_ROCKSDB
+                              ? "ENGINE=ROCKSDB"
+                              : "ENGINE=INNODB");
   m_target_def.add_option(static_cast<int>(Common_option::CHARSET), "CHARSET",
                           "DEFAULT CHARSET=utf8");
   m_target_def.add_option(static_cast<int>(Common_option::COLLATION),

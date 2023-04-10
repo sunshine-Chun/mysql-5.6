@@ -121,7 +121,9 @@ String_type Object_table_definition_impl::get_ddl() const {
   for (auto index : m_index_definitions) ss << ",\n  " << index.second;
 
   // Output foreign keys
-  for (auto key : m_foreign_key_definitions) ss << ",\n  " << key.second;
+  if (default_dd_storage_engine != DEFAULT_DD_ROCKSDB) {
+    for (auto key : m_foreign_key_definitions) ss << ",\n  " << key.second;
+  }
 
   ss << "\n)";
 

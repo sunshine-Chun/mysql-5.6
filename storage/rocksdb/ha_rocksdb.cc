@@ -56,6 +56,7 @@
 #include "sql/dd/dictionary.h"               // dd::Dictionary
 #include "sql/debug_sync.h"
 #include "sql/json_dom.h"
+#include "sql/plugin_table.h"
 #include "sql/sql_audit.h"
 #include "sql/sql_class.h"
 #include "sql/sql_lex.h"
@@ -3161,6 +3162,47 @@ static int rocksdb_compact_column_family(
   }
   return HA_EXIT_SUCCESS;
 }
+
+/** Set of ids of DD tables */
+static std::set<dd::Object_id> s_dd_table_ids;
+
+static bool rocksdb_is_supported_system_table(const char *, const char *,
+                                               bool is_sql_layer_system_table) {
+  // Currently InnoDB does not support any other SE specific system tables.
+  return is_sql_layer_system_table;
+}
+
+static bool rocksdb_ddse_dict_init(dict_init_mode_t dict_init_mode,
+                                   uint version,
+                                   List<const dd::Object_table> *tables,
+                                   List<const Plugin_tablespace> *tablespaces);
+
+static void rocksdb_dict_register_dd_table_id(dd::Object_id dd_table_id) {
+  s_dd_table_ids.insert(dd_table_id);
+};
+
+/** Haven't done anything yet */
+static bool rocksdb_dict_recover(dict_recovery_mode_t dict_recovery_mode,
+                                  uint version);
+
+/**
+  Get the server version id stored in private dd table.
+*/
+static bool rocksdb_dict_get_server_version(uint *version) {
+  return dict_manager
+      .get_dict_manager_selector_non_const(false /*is_tmp_table*/)
+      ->get_server_version(version);
+};
+
+/**
+  Store the current server version number into the
+  header of the dictionary tablespace.
+*/
+static bool rocksdb_dict_set_server_version() {
+  return dict_manager
+      .get_dict_manager_selector_non_const(false /*is_tmp_table*/)
+      ->set_server_version();
+};
 
 /*
  * Serializes an xid to a string so that it can
@@ -7431,6 +7473,13 @@ static int rocksdb_init_internal(void *const p) {
   rocksdb_hton->clone_interface.clone_apply_begin = rocksdb_clone_apply_begin;
   rocksdb_hton->clone_interface.clone_apply = rocksdb_clone_apply;
   rocksdb_hton->clone_interface.clone_apply_end = rocksdb_clone_apply_end;
+
+  rocksdb_hton->ddse_dict_init = rocksdb_ddse_dict_init;
+  rocksdb_hton->dict_register_dd_table_id = rocksdb_dict_register_dd_table_id;
+  rocksdb_hton->dict_recover = rocksdb_dict_recover;
+  rocksdb_hton->dict_get_server_version = rocksdb_dict_get_server_version;
+  rocksdb_hton->dict_set_server_version = rocksdb_dict_set_server_version;
+  rocksdb_hton->is_supported_system_table = rocksdb_is_supported_system_table;
 
   rocksdb_hton->flags = HTON_SUPPORTS_EXTENDED_KEYS | HTON_CAN_RECREATE;
 
@@ -18998,6 +19047,28 @@ static bool parse_fault_injection_params(
   return false;
 }
 
+static bool rocksdb_ddse_dict_init(
+    dict_init_mode_t dict_init_mode, [[maybe_unused]] uint version,
+    [[maybe_unused]] List<const dd::Object_table> *tables,
+    List<const Plugin_tablespace> *tablespaces) {
+  assert(tables && tables->is_empty());
+  assert(tablespaces && tablespaces->is_empty());
+
+  assert(dict_init_mode == DICT_INIT_CREATE_FILES ||
+         dict_init_mode == DICT_INIT_CHECK_FILES ||
+         dict_init_mode == DICT_INIT_UPGRADE_57_FILES);
+
+  static Plugin_tablespace dd_space("mysql", "", "", "", rocksdb_hton_name);
+  tablespaces->push_back(&dd_space);
+
+  return false;
+}
+
+static bool rocksdb_dict_recover(
+    [[maybe_unused]] dict_recovery_mode_t dict_recovery_mode,
+    [[maybe_unused]] uint version) {
+  return false;
+}
 }  // namespace myrocks
 
 /*
